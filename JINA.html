@@ -17,6 +17,10 @@ main{padding:12px 16px}.card{background:#f8faf9;border-radius:20px;padding:17px;
 .modal{position:fixed;inset:0;background:#0007;display:none;align-items:flex-end;z-index:10}.sheet{background:#fff;width:min(520px,100%);margin:auto;border-radius:24px 24px 0 0;padding:20px 17px 28px;max-height:90vh;overflow:auto}.sheet h2{margin:0 0 15px}
 label{display:block;font-size:13px;color:#64716b;margin:10px 0 5px}input,select{width:100%;padding:13px;border:1px solid #dfe6e2;border-radius:13px;font-size:16px;background:white}
 .actions{display:flex;gap:8px;margin-top:17px}.actions button{flex:1}.deposit{background:#fff;border:1px solid #e5ebe8;border-radius:13px;padding:10px;margin-top:8px}.empty{text-align:center;color:#7c8983;padding:20px}
+/* Жинақ прогрессі */
+.progress{height:9px;background:#e5ece9;border-radius:10px;overflow:hidden;margin:10px 0 5px}
+.progressBar{height:100%;background:#0f8f68;border-radius:10px;transition:.3s}
+.savingDeposit{background:#fff;border:1px solid #e5ebe8;border-radius:13px;padding:11px;margin-top:8px}
 </style>
 </head>
 <body>
@@ -44,6 +48,29 @@ const srcTotal=x=>x.deposits.reduce((s,d)=>s+Number(d.amount||0),0);
 const incomeTotal=()=>db.incomes.reduce((s,x)=>s+srcTotal(x),0);
 const expenseTotal=()=>db.expenses.reduce((s,x)=>s+Number(x.amount||0),0);
 const sourceName=id=>db.incomes.find(x=>x.id===id)?.name||"Белгісіз";
+/* Жинаққа байланысты жаңа функциялар */
+const savingTotal=x=>x.deposits
+ ? x.deposits.reduce((s,d)=>s+Number(d.amount||0),0)
+ : Number(x.saved||0);
+const savingPercent=x=>{
+ let p=x.goal?Math.round((savingTotal(x)/x.goal)*100):0;
+ return Math.min(p,100);
+};
+/* Ескі жинақтардағы saved сомасын жаңа deposits форматына көшіру */
+db.savings.forEach(x=>{
+ if(!Array.isArray(x.deposits)){
+   x.deposits=[];
+   if(Number(x.saved||0)>0){
+     x.deposits.push({
+       id:id(),
+       amount:Number(x.saved),
+       date:x.date||"",
+       comment:x.comment||"Алғашқы жинақ"
+     });
+   }
+ }
+});
+save();
 function render(){
 document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
 let I=incomeTotal(),E=expenseTotal(),h="";
@@ -84,10 +111,52 @@ else if(tab==="plan")h=`
 <button class="btn danger" onclick="delPlan('${x.id}')">🗑️</button></div>`).join("")||'<div class="empty">Жоспар жоқ</div>'}</div>`;
 else h=`
 <div class="row"><h2>Жинақ мақсаттары</h2><button class="btn primary" onclick="openSaving()">+ Мақсат</button></div>
-<div class="card">${db.savings.map(x=>`<div class="item"><div class="row"><b>${esc(x.name)}</b><b>${money(x.saved)} / ${money(x.goal)}</b></div>
-<div class="muted">${esc(x.date)} · ${esc(x.comment)}</div>
-<button class="btn secondary" onclick="editSaving('${x.id}')">✏️</button>
-<button class="btn danger" onclick="delSaving('${x.id}')">🗑️</button></div>`).join("")||'<div class="empty">Жинақ мақсаты жоқ</div>'}</div>`;
+${db.savings.map(x=>{
+ let total=savingTotal(x);
+ let percent=savingPercent(x);
+ let remain=Math.max(Number(x.goal||0)-total,0);
+ return `<div class="card">
+<div class="row">
+<div>
+<b>${esc(x.name)}</b>
+<div class="muted">Мақсат: ${money(x.goal)}</div>
+</div>
+<b class="income">${money(total)}</b>
+</div>
+<div class="progress">
+<div class="progressBar" style="width:${percent}%"></div>
+</div>
+<div class="row">
+<span class="muted">Жиналды: ${money(total)}</span>
+<span class="muted">${percent}%</span>
+</div>
+<div class="muted" style="margin-top:5px">
+Қалды: <b>${money(remain)}</b>
+</div>
+<div style="margin-top:12px">
+<button class="btn primary" onclick="openSavingDeposit('${x.id}')">
+＋ Ақша қосу
+</button>
+</div>
+${x.deposits.slice().reverse().map(d=>`
+<div class="savingDeposit">
+<div class="row">
+<b>+${money(d.amount)}</b>
+<span class="muted">${esc(d.date)}</span>
+</div>
+${d.comment?`<div class="muted">${esc(d.comment)}</div>`:""}
+<div style="margin-top:7px">
+<button class="btn secondary" onclick="editSavingDeposit('${x.id}','${d.id}')">✏️</button>
+<button class="btn danger" onclick="delSavingDeposit('${x.id}','${d.id}')">🗑️</button>
+</div>
+</div>
+`).join("")}
+<div style="margin-top:12px">
+<button class="btn secondary" onclick="editSaving('${x.id}')">✏️ Мақсат</button>
+<button class="btn danger" onclick="delSaving('${x.id}')">🗑️</button>
+</div>
+</div>`
+}).join("")||'<div class="card empty">Жинақ мақсаты жоқ</div>'}`;
 content.innerHTML=h;
 }
 document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>{tab=b.dataset.tab;render()});
@@ -165,17 +234,144 @@ function openPlan(){show(`<h2>Жоспар қосу</h2><label>Атауы</label
 <label>Комментарий</label><input id="pc">
 <div class="actions"><button class="btn secondary" onclick="closeM()">Бас тарту</button><button class="btn primary" onclick="addPlan()">Сақтау</button></div>`)}
 function addPlan(){if(!pt.value||!pa.value)return alert("Мәліметті толтырыңыз");db.plans.push({id:id(),title:pt.value,amount:Number(pa.value),date:pd.value,comment:pc.value});save();closeM();render()}
-function editPlan(i){let x=db.plans.find(x=>x.id===i);show(`<h2>Жоспарды өзгерту</h2><label>Атауы</label><input id="pt2" value="${esc(x.title)}"><label>Сома</label><input id="pa2" type="number" value="${x.amount}"><label>Дата</label><input id="pd2" type="date" value="${x.date}"><label>Комментарий</label><input id="pc2" value="${esc(x.comment)}"><div class="actions"><button class="btn secondary" onclick="closeM()">Бас тарту</button><button class="btn primary" onclick="upPlan('${i}')">Сақтау</button></div>`)}
-function upPlan(i){let x=db.plans.find(x=>x.id===i);x.title=pt2.value;x.amount=Number(pa2.value);x.date=pd2.value;x.comment=pc2.value;save();closeM();render()}
+function editPlan(i){
+let x=db.plans.find(x=>x.id===i);
+show(`<h2>Жоспарды өзгерту</h2><label>Атауы</label><input id="pt2" value="${esc(x.title)}"><label>Сома</label><input id="pa2" type="number" value="${x.amount}"><label>Дата</label><input id="pd2" type="date" value="${x.date}"><label>Комментарий</label><input id="pc2" value="${esc(x.comment)}"><div class="actions"><button class="btn secondary" onclick="closeM()">Бас тарту</button><button class="btn primary" onclick="upPlan('${i}')">Сақтау</button></div>`)
+}
+function upPlan(i){
+let x=db.plans.find(x=>x.id===i);x.title=pt2.value;x.amount=Number(pa2.value);x.date=pd2.value;x.comment=pc2.value;save();closeM();render()
+}
 function delPlan(i){if(confirm("Өшіру керек пе?")){db.plans=db.plans.filter(x=>x.id!==i);save();render()}}
-function openSaving(){show(`<h2>Жинақ қосу</h2><label>Мақсат</label><input id="sn">
-<label>Мақсат сомасы</label><input id="sg" type="number"><label>Жиналғаны</label><input id="ss" type="number" value="0">
-<label>Дата</label><input id="sd" type="date"><label>Комментарий</label><input id="sm">
-<div class="actions"><button class="btn secondary" onclick="closeM()">Бас тарту</button><button class="btn primary" onclick="addSaving()">Сақтау</button></div>`)}
-function addSaving(){if(!sn.value||!sg.value)return alert("Мәліметті толтырыңыз");db.savings.push({id:id(),name:sn.value,goal:Number(sg.value),saved:Number(ss.value||0),date:sd.value,comment:sm.value});save();closeM();render()}
-function editSaving(i){let x=db.savings.find(x=>x.id===i);show(`<h2>Жинақты өзгерту</h2><label>Мақсат</label><input id="sn2" value="${esc(x.name)}"><label>Мақсат сомасы</label><input id="sg2" type="number" value="${x.goal}"><label>Жиналғаны</label><input id="ss2" type="number" value="${x.saved}"><label>Дата</label><input id="sd2" type="date" value="${x.date}"><label>Комментарий</label><input id="sm2" value="${esc(x.comment)}"><div class="actions"><button class="btn secondary" onclick="closeM()">Бас тарту</button><button class="btn primary" onclick="upSaving('${i}')">Сақтау</button></div>`)}
-function upSaving(i){let x=db.savings.find(x=>x.id===i);x.name=sn2.value;x.goal=Number(sg2.value);x.saved=Number(ss2.value);x.date=sd2.value;x.comment=sm2.value;save();closeM();render()}
-function delSaving(i){if(confirm("Өшіру керек пе?")){db.savings=db.savings.filter(x=>x.id!==i);save();render()}}
+/* =========================
+   ЖАҢА ЖИНАҚ ФУНКЦИЯЛАРЫ
+========================= */
+function openSaving(){
+show(`<h2>Жинақ қосу</h2>
+<label>Мақсат</label><input id="sn" placeholder="Мысалы: Үйге ақша">
+<label>Мақсат сомасы</label><input id="sg" type="number" placeholder="4000000">
+<label>Бастапқы жинақ</label><input id="ss" type="number" value="0">
+<label>Дата</label><input id="sd" type="date">
+<label>Комментарий</label><input id="sm" placeholder="Алғашқы ақша">
+<div class="actions">
+<button class="btn secondary" onclick="closeM()">Бас тарту</button>
+<button class="btn primary" onclick="addSaving()">Сақтау</button>
+</div>`)
+}
+function addSaving(){
+if(!sn.value||!sg.value)return alert("Мәліметті толтырыңыз");
+let deposits=[];
+let firstAmount=Number(ss.value||0);
+if(firstAmount>0){
+ deposits.push({
+   id:id(),
+   amount:firstAmount,
+   date:sd.value,
+   comment:sm.value
+ });
+}
+db.savings.push({
+ id:id(),
+ name:sn.value,
+ goal:Number(sg.value),
+ deposits:deposits,
+ date:sd.value,
+ comment:sm.value
+});
+save();closeM();render();
+}
+/* Жинаққа ақша қосу */
+function openSavingDeposit(sid){
+show(`<h2>Жинаққа ақша қосу</h2>
+<label>Сома</label>
+<input id="sda" type="number" placeholder="50000">
+<label>Дата</label>
+<input id="sdd" type="date">
+<label>Комментарий</label>
+<input id="sdc" placeholder="Айлықтан жинадым">
+<div class="actions">
+<button class="btn secondary" onclick="closeM()">Бас тарту</button>
+<button class="btn primary" onclick="addSavingDeposit('${sid}')">＋ Қосу</button>
+</div>`)
+}
+function addSavingDeposit(sid){
+let a=Number(sda.value);
+if(!a)return alert("Соманы енгізіңіз");
+let x=db.savings.find(x=>x.id===sid);
+if(!x)return alert("Жинақ табылмады");
+if(!Array.isArray(x.deposits))x.deposits=[];
+x.deposits.push({
+ id:id(),
+ amount:a,
+ date:sdd.value,
+ comment:sdc.value
+});
+save();
+closeM();
+render();
+}
+/* Жинақтағы салымды өзгерту */
+function editSavingDeposit(sid,did){
+let x=db.savings.find(x=>x.id===sid);
+let d=x.deposits.find(x=>x.id===did);
+show(`<h2>Салымды өзгерту</h2>
+<label>Сома</label>
+<input id="sdea" type="number" value="${d.amount}">
+<label>Дата</label>
+<input id="sded" type="date" value="${d.date}">
+<label>Комментарий</label>
+<input id="sdec" value="${esc(d.comment)}">
+<div class="actions">
+<button class="btn secondary" onclick="closeM()">Бас тарту</button>
+<button class="btn primary" onclick="updateSavingDeposit('${sid}','${did}')">Сақтау</button>
+</div>`)
+}
+function updateSavingDeposit(sid,did){
+let x=db.savings.find(x=>x.id===sid);
+let d=x.deposits.find(x=>x.id===did);
+d.amount=Number(sdea.value);
+d.date=sded.value;
+d.comment=sdec.value;
+save();
+closeM();
+render();
+}
+/* Жинақтағы салымды өшіру */
+function delSavingDeposit(sid,did){
+if(confirm("Бұл салымды өшіру керек пе?")){
+ let x=db.savings.find(x=>x.id===sid);
+ x.deposits=x.deposits.filter(d=>d.id!==did);
+ save();
+ render();
+}
+}
+/* Жинақ мақсатын өзгерту */
+function editSaving(i){
+let x=db.savings.find(x=>x.id===i);
+show(`<h2>Жинақты өзгерту</h2>
+<label>Мақсат</label>
+<input id="sn2" value="${esc(x.name)}">
+<label>Мақсат сомасы</label>
+<input id="sg2" type="number" value="${x.goal}">
+<div class="actions">
+<button class="btn secondary" onclick="closeM()">Бас тарту</button>
+<button class="btn primary" onclick="upSaving('${i}')">Сақтау</button>
+</div>`)
+}
+function upSaving(i){
+let x=db.savings.find(x=>x.id===i);
+x.name=sn2.value;
+x.goal=Number(sg2.value);
+save();
+closeM();
+render();
+}
+function delSaving(i){
+if(confirm("Өшіру керек пе?")){
+ db.savings=db.savings.filter(x=>x.id!==i);
+ save();
+ render();
+}
+}
 render();
 </script>
 </body>
