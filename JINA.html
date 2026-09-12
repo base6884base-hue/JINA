@@ -1,148 +1,182 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="kk">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f8f68">
 <title>JINA — Жеке қаржы</title>
 <style>
-*{box-sizing:border-box}body{margin:0;font-family:Arial;background:#f5f6fa;color:#222}
-header{background:#111;color:white;padding:18px;text-align:center;font-size:22px;font-weight:bold}
-nav{display:flex;overflow:auto;background:white;border-bottom:1px solid #ddd}
-nav button{border:0;background:white;padding:14px 12px;font-size:14px;white-space:nowrap}
-nav button.active{color:#1677ff;font-weight:bold;border-bottom:2px solid #1677ff}
-main{padding:15px;max-width:650px;margin:auto}
-.card{background:white;border-radius:16px;padding:16px;margin-bottom:12px;box-shadow:0 2px 8px #ddd}
-h2{margin-top:5px}.money{font-size:25px;font-weight:bold}
-button{border:0;border-radius:10px;padding:9px 12px;margin:3px;background:#eee}
-.add{background:#1677ff;color:white}.del{background:#ffe5e5;color:#d00}
-input,select,textarea{width:100%;padding:11px;margin:6px 0;border:1px solid #ddd;border-radius:10px}
-.row{display:flex;justify-content:space-between;align-items:center}
-.deposit{background:#f7f8fb;padding:10px;border-radius:10px;margin-top:7px}
-.small{font-size:13px;color:#777}
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f7f6;color:#17211d}
+.app{max-width:520px;margin:auto;min-height:100vh;background:#fff;padding-bottom:82px}
+header{padding:22px 18px 10px;background:#fff;position:sticky;top:0;z-index:2}.brand{font-size:28px;font-weight:800;color:#0f8f68}.sub{color:#718079;font-size:13px;margin-top:3px}
+main{padding:12px 16px}.card{background:#f8faf9;border-radius:20px;padding:17px;margin-bottom:13px;border:1px solid #edf1ef}
+.balance{background:#0f8f68;color:#fff}.balance .muted{color:#d8f3e9}.big{font-size:31px;font-weight:800;margin:7px 0 14px}.row{display:flex;justify-content:space-between;gap:10px;align-items:center}.muted{color:#708078;font-size:13px}.income{color:#13855f}.expense{color:#c45454}.source{font-weight:700}
+.btn{border:0;border-radius:14px;padding:10px 13px;font-weight:700}.primary{background:#0f8f68;color:white}.secondary{background:#e9f3ef;color:#0f7658}.danger{background:#fff0f0;color:#b94b4b}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.tile{padding:15px;border-radius:17px;background:#f7f9f8}.tile b{font-size:18px}.list{margin-top:10px}.item{padding:13px 0;border-bottom:1px solid #e8ecea}.item:last-child{border:0}
+.nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(520px,100%);background:#fff;border-top:1px solid #e7ebe9;display:flex;justify-content:space-around;padding:9px 4px calc(9px + env(safe-area-inset-bottom));z-index:5}.nav button{border:0;background:none;color:#78847f;font-size:11px}.nav button.active{color:#0f8f68;font-weight:800}.nav span{display:block;font-size:20px;margin-bottom:2px}
+.modal{position:fixed;inset:0;background:#0007;display:none;align-items:flex-end;z-index:10}.sheet{background:#fff;width:min(520px,100%);margin:auto;border-radius:24px 24px 0 0;padding:20px 17px 28px;max-height:90vh;overflow:auto}.sheet h2{margin:0 0 15px}
+label{display:block;font-size:13px;color:#64716b;margin:10px 0 5px}input,select{width:100%;padding:13px;border:1px solid #dfe6e2;border-radius:13px;font-size:16px;background:white}
+.actions{display:flex;gap:8px;margin-top:17px}.actions button{flex:1}.deposit{background:#fff;border:1px solid #e5ebe8;border-radius:13px;padding:10px;margin-top:8px}.empty{text-align:center;color:#7c8983;padding:20px}
 </style>
 </head>
 <body>
-<header>JINA 💰 Жеке қаржы</header>
-<nav>
-<button onclick="show('home')" id="nh">Басты</button>
-<button onclick="show('income')" id="ni">Кірістер</button>
-<button onclick="show('expense')" id="ne">Шығыстар</button>
-<button onclick="show('plan')" id="np">Жоспар</button>
-<button onclick="show('save')" id="ns">Жинақ</button>
-</nav>
-<main id="app"></main>
+<div class="app">
+<header><div class="brand">JINA</div><div class="sub">Аздан жина — көпке жет 💚</div></header>
+<main id="content"></main>
+<nav class="nav">
+<button data-tab="home" class="active"><span>⌂</span>Басты</button>
+<button data-tab="income"><span>＋</span>Кірістер</button>
+<button data-tab="expense"><span>−</span>Шығыстар</button>
+<button data-tab="plan"><span>◷</span>Жоспар</button>
+<button data-tab="savings"><span>🎯</span>Жинақ</button>
+</nav></div>
+<div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
 <script>
 const KEY="jina_v3";
 let db=JSON.parse(localStorage.getItem(KEY)||'{"incomes":[],"expenses":[],"plans":[],"savings":[]}');
-function save(){localStorage.setItem(KEY,JSON.stringify(db))}
-function money(n){return Number(n||0).toLocaleString('kk-KZ')+" ₸"}
-function id(){return Date.now()+Math.random()}
-function esc(x){return String(x||'').replace(/</g,'&lt;')}
-function show(p){
- document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
- document.getElementById({home:'nh',income:'ni',expense:'ne',plan:'np',save:'ns'}[p]).classList.add('active');
- if(p=='home')home();if(p=='income')income();if(p=='expense')expense();if(p=='plan')plan();if(p=='save')savings();
+let tab="home";
+const money=n=>new Intl.NumberFormat("kk-KZ").format(Math.round(n||0))+" ₸";
+const save=()=>localStorage.setItem(KEY,JSON.stringify(db));
+const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+const id=()=>Date.now().toString()+Math.random();
+const spent=id=>db.expenses.filter(x=>x.sourceId===id).reduce((s,x)=>s+Number(x.amount||0),0);
+const srcTotal=x=>x.deposits.reduce((s,d)=>s+Number(d.amount||0),0);
+const incomeTotal=()=>db.incomes.reduce((s,x)=>s+srcTotal(x),0);
+const expenseTotal=()=>db.expenses.reduce((s,x)=>s+Number(x.amount||0),0);
+const sourceName=id=>db.incomes.find(x=>x.id===id)?.name||"Белгісіз";
+function render(){
+document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
+let I=incomeTotal(),E=expenseTotal(),h="";
+if(tab==="home")h=`
+<div class="card balance"><div class="muted">Қазіргі жалпы баланс</div><div class="big">${money(I-E)}</div>
+<div class="row"><span>Кіріс<br><b>${money(I)}</b></span><span>Шығыс<br><b>${money(E)}</b></span></div></div>
+<div class="grid"><div class="tile"><div class="muted">Кірістер</div><b>${db.incomes.length} көз</b></div>
+<div class="tile"><div class="muted">Шығыстар</div><b>${db.expenses.length} рет</b></div></div>
+<div class="card"><div class="row"><b>Кірістер бойынша қалдық</b><button class="btn secondary" onclick="openIncome()">+ Қосу</button></div>
+${db.incomes.map(x=>`<div class="item"><div class="row"><b>${esc(x.name)}</b><b>${money(srcTotal(x)-spent(x.id))}</b></div>
+<div class="muted">Кіріс: ${money(srcTotal(x))} · Жұмсалғаны: ${money(spent(x.id))}</div></div>`).join("")||'<div class="empty">Кіріс жоқ</div>'}</div>
+<div class="card"><div class="row"><b>Соңғы шығыстар</b><button class="btn primary" onclick="openExpense()">+ Шығыс</button></div>
+${db.expenses.slice(-5).reverse().map(x=>`<div class="item"><div class="row"><span>${esc(x.category)}</span><b class="expense">−${money(x.amount)}</b></div>
+<div class="muted">${esc(sourceName(x.sourceId))}</div></div>`).join("")||'<div class="empty">Шығыс жоқ</div>'}</div>`;
+else if(tab==="income")h=`
+<div class="row"><h2>Кірістер</h2><button class="btn primary" onclick="openIncome()">+ Кіріс</button></div>
+${db.incomes.map(x=>`<div class="card"><div class="row"><div><b>${esc(x.name)}</b>
+<div class="muted">Барлығы: ${money(srcTotal(x))}</div></div>
+<b class="income">${money(srcTotal(x)-spent(x.id))}</b></div>
+<div class="muted">Жұмсалғаны: ${money(spent(x.id))}</div>
+<button class="btn primary" onclick="openDeposit('${x.id}')">＋ Ақша қосу</button>
+${x.deposits.map(d=>`<div class="deposit"><div class="row"><b>+${money(d.amount)}</b><span class="muted">${esc(d.date)}</span></div>
+<div class="muted">${esc(d.comment)}</div>
+<button class="btn secondary" onclick="editDeposit('${x.id}','${d.id}')">✏️</button>
+<button class="btn danger" onclick="delDeposit('${x.id}','${d.id}')">🗑️</button></div>`).join("")}</div>`).join("")||'<div class="card empty">Кіріс қосыңыз</div>'}`;
+else if(tab==="expense")h=`
+<div class="row"><h2>Шығыстар</h2><button class="btn primary" onclick="openExpense()">+ Шығыс</button></div>
+<div class="card">${db.expenses.slice().reverse().map(x=>`<div class="item">
+<div class="row"><div><b>${esc(x.category)}</b><div class="muted">${esc(x.date)}</div></div><b class="expense">−${money(x.amount)}</b></div>
+<div class="muted">${esc(x.comment)} · Ақша көзі: <b>${esc(sourceName(x.sourceId))}</b></div>
+<button class="btn secondary" onclick="editExpense('${x.id}')">✏️</button>
+<button class="btn danger" onclick="delExpense('${x.id}')">🗑️</button></div>`).join("")||'<div class="empty">Шығыс қосыңыз</div>'}</div>`;
+else if(tab==="plan")h=`
+<div class="row"><h2>Жоспар</h2><button class="btn primary" onclick="openPlan()">+ Жоспар</button></div>
+<div class="card">${db.plans.map(x=>`<div class="item"><div class="row"><b>${esc(x.title)}</b><b>${money(x.amount)}</b></div>
+<div class="muted">${esc(x.date)} · ${esc(x.comment)}</div>
+<button class="btn secondary" onclick="editPlan('${x.id}')">✏️</button>
+<button class="btn danger" onclick="delPlan('${x.id}')">🗑️</button></div>`).join("")||'<div class="empty">Жоспар жоқ</div>'}</div>`;
+else h=`
+<div class="row"><h2>Жинақ мақсаттары</h2><button class="btn primary" onclick="openSaving()">+ Мақсат</button></div>
+<div class="card">${db.savings.map(x=>`<div class="item"><div class="row"><b>${esc(x.name)}</b><b>${money(x.saved)} / ${money(x.goal)}</b></div>
+<div class="muted">${esc(x.date)} · ${esc(x.comment)}</div>
+<button class="btn secondary" onclick="editSaving('${x.id}')">✏️</button>
+<button class="btn danger" onclick="delSaving('${x.id}')">🗑️</button></div>`).join("")||'<div class="empty">Жинақ мақсаты жоқ</div>'}</div>`;
+content.innerHTML=h;
 }
-function totalIncome(){return db.incomes.reduce((a,s)=>a+s.deposits.reduce((x,d)=>x+ +d.amount,0),0)}
-function totalExpense(){return db.expenses.reduce((a,e)=>a+ +e.amount,0)}
-function sourceTotal(s){return s.deposits.reduce((a,d)=>a+ +d.amount,0)}
-function spent(id){return db.expenses.filter(e=>e.sourceId==id).reduce((a,e)=>a+ +e.amount,0)}
-function home(){
- app.innerHTML=`<div class="card"><h2>💰 Баланс</h2><div class="money">${money(totalIncome()-totalExpense())}</div>
- <p>Кіріс: ${money(totalIncome())}</p><p>Шығыс: ${money(totalExpense())}</p></div>`;
+document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>{tab=b.dataset.tab;render()});
+function show(x){sheet.innerHTML=x;modal.style.display="flex"}
+function closeM(){modal.style.display="none"}
+modal.onclick=e=>{if(e.target.id==="modal")closeM()};
+function openIncome(){show(`<h2>Кіріс қосу</h2>
+<label>Адам / кіріс атауы</label><input id="inName" placeholder="Аскар">
+<label>Сома</label><input id="inAmount" type="number" placeholder="400000">
+<label>Дата</label><input id="inDate" type="date">
+<label>Комментарий</label><input id="inComment" placeholder="Айлық">
+<div class="actions"><button class="btn secondary" onclick="closeM()">Бас тарту</button><button class="btn primary" onclick="addIncome()">Сақтау</button></div>`)}
+function addIncome(){
+let n=inName.value.trim(),a=Number(inAmount.value);if(!n||!a)return alert("Мәліметті толтырыңыз");
+let x=db.incomes.find(x=>x.name.toLowerCase()===n.toLowerCase());
+let d={id:id(),amount:a,date:inDate.value,comment:inComment.value};
+if(x)x.deposits.push(d);else db.incomes.push({id:id(),name:n,deposits:[d]});
+save();closeM();render();
 }
-function income(){
- app.innerHTML=`<div class="card"><div class="row"><h2>Кірістер</h2><button class="add" onclick="newSource()">＋ Кіріс</button></div></div>`+
- db.incomes.map(s=>`<div class="card">
- <div class="row"><div><b>${esc(s.name)}</b><div class="money">${money(sourceTotal(s))}</div></div>
- <div><button onclick="rename('${s.id}')">✏️</button><button class="del" onclick="delSource('${s.id}')">🗑️</button></div></div>
- <p class="small">Қалды: ${money(sourceTotal(s)-spent(s.id))}</p>
- <button class="add" onclick="addDeposit('${s.id}')">＋ Ақша қосу</button>
- ${s.deposits.map(d=>`<div class="deposit"><b>+${money(d.amount)}</b><br><span class="small">${d.date||''} ${esc(d.comment)}</span>
- <br><button onclick="editDeposit('${s.id}','${d.id}')">✏️</button><button class="del" onclick="delDeposit('${s.id}','${d.id}')">🗑️</button></div>`).join('')}
- </div>`).join('');
-}
-function newSource(){
- let name=prompt("Кіріс көзі / адам аты:");
- if(!name)return;
- let amount=prompt("Алғашқы ақша:");
- if(amount===null)return;
- db.incomes.push({id:id(),name,deposits:[{id:id(),amount:+amount,date:new Date().toISOString().slice(0,10),comment:""}]});
- save();income();
-}
+function openDeposit(sid){show(`<h2>Ақша қосу</h2>
+<label>Сома</label><input id="da" type="number">
+<label>Дата</label><input id="dd" type="date">
+<label>Комментарий</label><input id="dc" placeholder="Қосымша ақша">
+<div class="actions"><button class="btn secondary" onclick="closeM()">Бас тарту</button><button class="btn primary" onclick="addDeposit('${sid}')">Қосу</button></div>`)}
 function addDeposit(sid){
- let a=prompt("Қосылатын ақша:");
- if(a===null)return;
- let date=prompt("Күні (YYYY-MM-DD):",new Date().toISOString().slice(0,10));
- let c=prompt("Комментарий:");
- let s=db.incomes.find(x=>x.id==sid);
- s.deposits.push({id:id(),amount:+a,date,comment:c||""});save();income();
+let a=Number(da.value);if(!a)return alert("Соманы енгізіңіз");
+db.incomes.find(x=>x.id===sid).deposits.push({id:id(),amount:a,date:dd.value,comment:dc.value});
+save();closeM();render();
 }
 function editDeposit(sid,did){
- let s=db.incomes.find(x=>x.id==sid),d=s.deposits.find(x=>x.id==did);
- let a=prompt("Сома:",d.amount);if(a===null)return;
- let date=prompt("Күні:",d.date),c=prompt("Комментарий:",d.comment);
- d.amount=+a;d.date=date;d.comment=c||"";save();income();
+let d=db.incomes.find(x=>x.id===sid).deposits.find(x=>x.id===did);
+show(`<h2>Кірісті өзгерту</h2><label>Сома</label><input id="ea" type="number" value="${d.amount}">
+<label>Дата</label><input id="ed" type="date" value="${d.date}">
+<label>Комментарий</label><input id="ec" value="${esc(d.comment)}">
+<div class="actions"><button class="btn secondary" onclick="closeM()">Бас тарту</button><button class="btn primary" onclick="updateDeposit('${sid}','${did}')">Сақтау</button></div>`)
+}
+function updateDeposit(sid,did){
+let d=db.incomes.find(x=>x.id===sid).deposits.find(x=>x.id===did);
+d.amount=Number(ea.value);d.date=ed.value;d.comment=ec.value;save();closeM();render();
 }
 function delDeposit(sid,did){
- if(!confirm("Өшіру керек пе?"))return;
- let s=db.incomes.find(x=>x.id==sid);s.deposits=s.deposits.filter(d=>d.id!=did);save();income();
+if(confirm("Өшіру керек пе?")){let s=db.incomes.find(x=>x.id===sid);s.deposits=s.deposits.filter(x=>x.id!==did);save();render()}
 }
-function rename(sid){
- let s=db.incomes.find(x=>x.id==sid),n=prompt("Аты:",s.name);
- if(n){s.name=n;save();income()}
-}
-function delSource(sid){
- if(db.expenses.some(e=>e.sourceId==sid)){alert("Бұл кіріске шығыс байланысқан.");return}
- if(confirm("Кірісті өшіру керек пе?")){db.incomes=db.incomes.filter(s=>s.id!=sid);save();income()}
-}
-function expense(){
- app.innerHTML=`<div class="card"><div class="row"><h2>Шығыстар</h2><button class="add" onclick="newExpense()">＋</button></div></div>`+
- db.expenses.map(e=>`<div class="card"><b>${money(e.amount)}</b> — ${esc(e.name)}
- <div class="small">${e.date||''} ${esc(e.comment)}</div>
- <button onclick="editExpense('${e.id}')">✏️</button><button class="del" onclick="delExpense('${e.id}')">🗑️</button></div>`).join('');
-}
-function newExpense(){
- let s=db.incomes.map(x=>`${x.id}|${x.name}`).join('\n');
- let sid=prompt("Кіріс көзі ID:\n"+s);if(!sid)return;
- let a=prompt("Шығын сомасы:");if(a===null)return;
- let n=prompt("Не үшін?"),d=prompt("Күні:",new Date().toISOString().slice(0,10)),c=prompt("Комментарий:");
- db.expenses.push({id:id(),sourceId:sid,amount:+a,name:n||"",date:d,comment:c||""});save();expense();
+function sourceOptions(){return db.incomes.map((x,i)=>`<label><input type="radio" name="src" value="${x.id}" ${i?"":"checked"}>
+<div>💰 ${esc(x.name)} — ${money(srcTotal(x)-spent(x.id))}</div></label>`).join("")}
+function openExpense(){show(`<h2>Шығыс қосу</h2>
+<label>Шығыс атауы</label><input id="xc" placeholder="Тамақ, кредит...">
+<label>Сома</label><input id="xa" type="number">
+<label>Дата</label><input id="xd" type="date">
+<label>Комментарий</label><input id="xm" placeholder="Комментарий">
+<label>Ақша қай кірістен?</label><div class="sourcePick">${sourceOptions()}</div>
+<div class="actions"><button class="btn secondary" onclick="closeM()">Бас тарту</button><button class="btn primary" onclick="addExpense()">Сақтау</button></div>`)}
+function addExpense(){
+let a=Number(xa.value),r=document.querySelector('input[name="src"]:checked');
+if(!xc.value||!a||!r)return alert("Мәліметті толтырыңыз");
+let s=db.incomes.find(x=>x.id===r.value);
+if(a>srcTotal(s)-spent(s.id))return alert("Қалдық жеткіліксіз");
+db.expenses.push({id:id(),category:xc.value,amount:a,date:xd.value,comment:xm.value,sourceId:r.value});
+save();closeM();render();
 }
 function editExpense(i){
- let e=db.expenses.find(x=>x.id==i),a=prompt("Сома:",e.amount);if(a===null)return;
- e.amount=+a;e.name=prompt("Не үшін:",e.name)||"";e.date=prompt("Күні:",e.date);e.comment=prompt("Комментарий:",e.comment)||"";save();expense();
+let x=db.expenses.find(x=>x.id===i);
+show(`<h2>Шығысты өзгерту</h2><label>Атауы</label><input id="ecat" value="${esc(x.category)}">
+<label>Сома</label><input id="eamt" type="number" value="${x.amount}">
+<label>Дата</label><input id="edate" type="date" value="${x.date}">
+<label>Комментарий</label><input id="ecom" value="${esc(x.comment)}">
+<div class="actions"><button class="btn secondary" onclick="closeM()">Бас тарту</button><button class="btn primary" onclick="updateExpense('${i}')">Сақтау</button></div>`)
 }
-function delExpense(i){if(confirm("Өшіру керек пе?")){db.expenses=db.expenses.filter(e=>e.id!=i);save();expense()}}
-function plan(){
- app.innerHTML=`<div class="card"><div class="row"><h2>Жоспар</h2><button class="add" onclick="newPlan()">＋</button></div></div>`+
- db.plans.map(x=>`<div class="card"><b>${esc(x.name)}</b> — ${money(x.amount)}
- <div class="small">${x.date||''} ${esc(x.comment)}</div>
- <button onclick="editPlan('${x.id}')">✏️</button><button class="del" onclick="delPlan('${x.id}')">🗑️</button></div>`).join('');
+function updateExpense(i){
+let x=db.expenses.find(x=>x.id===i);x.category=ecat.value;x.amount=Number(eamt.value);x.date=edate.value;x.comment=ecom.value;save();closeM();render();
 }
-function newPlan(){
- let n=prompt("Жоспар:"),a=prompt("Сома:");if(!n||a===null)return;
- db.plans.push({id:id(),name:n,amount:+a,date:prompt("Күні:",new Date().toISOString().slice(0,10)),comment:prompt("Комментарий:")||""});save();plan();
-}
-function editPlan(i){
- let x=db.plans.find(x=>x.id==i);x.name=prompt("Жоспар:",x.name)||"";x.amount=+prompt("Сома:",x.amount);x.date=prompt("Күні:",x.date);x.comment=prompt("Комментарий:",x.comment)||"";save();plan();
-}
-function delPlan(i){if(confirm("Өшіру керек пе?")){db.plans=db.plans.filter(x=>x.id!=i);save();plan()}}
-function savings(){
- app.innerHTML=`<div class="card"><div class="row"><h2>Жинақ</h2><button class="add" onclick="newSave()">＋</button></div></div>`+
- db.savings.map(x=>`<div class="card"><b>${esc(x.name)}</b> — ${money(x.amount)}
- <div class="small">${x.date||''} ${esc(x.comment)}</div>
- <button onclick="editSave('${x.id}')">✏️</button><button class="del" onclick="delSave('${x.id}')">🗑️</button></div>`).join('');
-}
-function newSave(){
- let n=prompt("Жинақ атауы:"),a=prompt("Сома:");if(!n||a===null)return;
- db.savings.push({id:id(),name:n,amount:+a,date:prompt("Күні:",new Date().toISOString().slice(0,10)),comment:prompt("Комментарий:")||""});save();savings();
-}
-function editSave(i){
- let x=db.savings.find(x=>x.id==i);x.name=prompt("Атауы:",x.name)||"";x.amount=+prompt("Сома:",x.amount);x.date=prompt("Күні:",x.date);x.comment=prompt("Комментарий:",x.comment)||"";save();savings();
-}
-function delSave(i){if(confirm("Өшіру керек пе?")){db.savings=db.savings.filter(x=>x.id!=i);save();savings()}}
-show('home');
+function delExpense(i){if(confirm("Өшіру керек пе?")){db.expenses=db.expenses.filter(x=>x.id!==i);save();render()}}
+function openPlan(){show(`<h2>Жоспар қосу</h2><label>Атауы</label><input id="pt">
+<label>Сома</label><input id="pa" type="number"><label>Дата</label><input id="pd" type="date">
+<label>Комментарий</label><input id="pc">
+<div class="actions"><button class="btn secondary" onclick="closeM()">Бас тарту</button><button class="btn primary" onclick="addPlan()">Сақтау</button></div>`)}
+function addPlan(){if(!pt.value||!pa.value)return alert("Мәліметті толтырыңыз");db.plans.push({id:id(),title:pt.value,amount:Number(pa.value),date:pd.value,comment:pc.value});save();closeM();render()}
+function editPlan(i){let x=db.plans.find(x=>x.id===i);show(`<h2>Жоспарды өзгерту</h2><label>Атауы</label><input id="pt2" value="${esc(x.title)}"><label>Сома</label><input id="pa2" type="number" value="${x.amount}"><label>Дата</label><input id="pd2" type="date" value="${x.date}"><label>Комментарий</label><input id="pc2" value="${esc(x.comment)}"><div class="actions"><button class="btn secondary" onclick="closeM()">Бас тарту</button><button class="btn primary" onclick="upPlan('${i}')">Сақтау</button></div>`)}
+function upPlan(i){let x=db.plans.find(x=>x.id===i);x.title=pt2.value;x.amount=Number(pa2.value);x.date=pd2.value;x.comment=pc2.value;save();closeM();render()}
+function delPlan(i){if(confirm("Өшіру керек пе?")){db.plans=db.plans.filter(x=>x.id!==i);save();render()}}
+function openSaving(){show(`<h2>Жинақ қосу</h2><label>Мақсат</label><input id="sn">
+<label>Мақсат сомасы</label><input id="sg" type="number"><label>Жиналғаны</label><input id="ss" type="number" value="0">
+<label>Дата</label><input id="sd" type="date"><label>Комментарий</label><input id="sm">
+<div class="actions"><button class="btn secondary" onclick="closeM()">Бас тарту</button><button class="btn primary" onclick="addSaving()">Сақтау</button></div>`)}
+function addSaving(){if(!sn.value||!sg.value)return alert("Мәліметті толтырыңыз");db.savings.push({id:id(),name:sn.value,goal:Number(sg.value),saved:Number(ss.value||0),date:sd.value,comment:sm.value});save();closeM();render()}
+function editSaving(i){let x=db.savings.find(x=>x.id===i);show(`<h2>Жинақты өзгерту</h2><label>Мақсат</label><input id="sn2" value="${esc(x.name)}"><label>Мақсат сомасы</label><input id="sg2" type="number" value="${x.goal}"><label>Жиналғаны</label><input id="ss2" type="number" value="${x.saved}"><label>Дата</label><input id="sd2" type="date" value="${x.date}"><label>Комментарий</label><input id="sm2" value="${esc(x.comment)}"><div class="actions"><button class="btn secondary" onclick="closeM()">Бас тарту</button><button class="btn primary" onclick="upSaving('${i}')">Сақтау</button></div>`)}
+function upSaving(i){let x=db.savings.find(x=>x.id===i);x.name=sn2.value;x.goal=Number(sg2.value);x.saved=Number(ss2.value);x.date=sd2.value;x.comment=sm2.value;save();closeM();render()}
+function delSaving(i){if(confirm("Өшіру керек пе?")){db.savings=db.savings.filter(x=>x.id!==i);save();render()}}
+render();
 </script>
 </body>
 </html>
